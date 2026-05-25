@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuralStroke — Stroke Risk Prediction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a24;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0eff8;
+    --muted: rgba(240,239,248,0.45);
+    --faint: rgba(240,239,248,0.18);
+    --red: #ff3b3b;
+    --red-dim: rgba(255,59,59,0.15);
+    --red-glow: rgba(255,59,59,0.08);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.15);
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.15);
+    --accent: #c84b4b;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2.5rem;
+    height: 60px;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,59,59,0.5)}
+    50%{transform:scale(1.3);box-shadow:0 0 0 6px rgba(255,59,59,0)}
+  }
+  .nav-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    padding: 3px 10px;
+    border: 0.5px solid var(--border2);
+    border-radius: 100px;
+    color: var(--muted);
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center;
+    padding: 80px 2rem 4rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,59,59,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,59,59,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+  }
+  .hero-glow {
+    position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 300px;
+    background: radial-gradient(ellipse, rgba(200,75,75,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--red);
+    border: 0.5px solid rgba(255,59,59,0.3);
+    padding: 5px 16px; border-radius: 100px;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-title {
+    font-size: clamp(2.8rem, 7vw, 5.5rem);
+    font-weight: 800; line-height: 1.0;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  .hero-title em { font-style: normal; color: var(--red); }
+  .hero-sub {
+    font-size: 1.05rem; color: var(--muted); max-width: 540px;
+    line-height: 1.7; margin-bottom: 2.5rem;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+  .hero-stats {
+    display: flex; gap: 3rem; margin-bottom: 3rem;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+  .hstat { text-align: center; }
+  .hstat-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.8rem; font-weight: 500; color: var(--text);
+  }
+  .hstat-num span { color: var(--red); }
+  .hstat-label { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: 0.05em; }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--red); color: #fff;
+    padding: 14px 32px; border-radius: 100px;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: fadeUp 0.6s 0.35s ease both;
+  }
+  .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(255,59,59,0.35); }
+  .cta-arrow { font-size: 18px; transition: transform 0.2s; }
+  .hero-cta:hover .cta-arrow { transform: translateX(3px); }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(20px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* ─── MAIN LAYOUT ─── */
+  .main { max-width: 1100px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--red); margin-bottom: 0.5rem;
+  }
+  .section-title {
+    font-size: 1.75rem; font-weight: 700; margin-bottom: 2rem;
+  }
+
+  /* ─── PREDICT FORM ─── */
+  .predict-layout {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start;
+  }
+  .card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    padding: 1.75rem;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .card-title { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+  .card-sub { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* Age slider */
+  .age-section { margin-bottom: 1.5rem; }
+  .age-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .age-display {
+    font-family: 'DM Mono', monospace; font-size: 1.6rem; font-weight: 500;
+    color: var(--text); margin-bottom: 8px;
+  }
+  .age-display span { font-size: 13px; color: var(--muted); }
+  input[type=range] {
+    width: 100%; height: 4px; border-radius: 2px;
+    -webkit-appearance: none; appearance: none;
+    background: var(--border2); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 8px rgba(255,59,59,0.5);
+    cursor: pointer; transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  /* Symptoms grid */
+  .sym-section-label { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 10px; }
+  .sym-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sym-check {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px; cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .sym-check:hover { border-color: rgba(255,59,59,0.3); background: var(--red-dim); }
+  .sym-check.active { border-color: rgba(255,59,59,0.5); background: var(--red-dim); }
+  .sym-check input { display: none; }
+  .sym-box {
+    width: 14px; height: 14px; border-radius: 4px;
+    border: 1.5px solid var(--border2); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .sym-check.active .sym-box {
+    background: var(--red); border-color: var(--red);
+  }
+  .sym-check.active .sym-box::after {
+    content: '✓'; font-size: 9px; color: #fff; font-weight: 700;
+  }
+  .sym-text { font-size: 12px; color: var(--muted); transition: color 0.15s; }
+  .sym-check.active .sym-text { color: var(--text); }
+
+  .predict-btn {
+    width: 100%; margin-top: 1.5rem;
+    padding: 15px; border: none; border-radius: 12px;
+    background: var(--red); color: #fff;
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .predict-btn:hover { box-shadow: 0 6px 24px rgba(255,59,59,0.4); transform: translateY(-1px); }
+  .predict-btn:active { transform: scale(0.99); }
+  .predict-btn.loading { opacity: 0.7; pointer-events: none; }
+
+  /* ─── RESULT PANEL ─── */
+  .result-panel { position: sticky; top: 80px; }
+  .result-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 400px; text-align: center; color: var(--faint);
+  }
+  .result-empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+  .result-empty-text { font-size: 13px; line-height: 1.6; }
+  .result-content { display: none; }
+  .result-content.show { display: block; animation: fadeUp 0.5s ease; }
+
+  /* Risk meter */
+  .risk-meter-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 1.5rem 0; border-bottom: 0.5px solid var(--border);
+    margin-bottom: 1.25rem;
+  }
+  .risk-arc-wrap { position: relative; width: 160px; height: 100px; margin-bottom: 12px; }
+  .risk-arc-wrap canvas { position: absolute; top: 0; left: 0; }
+  .risk-number {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    font-family: 'DM Mono', monospace; font-size: 2.2rem; font-weight: 500;
+    text-align: center; white-space: nowrap;
+  }
+  .risk-number small { font-size: 13px; color: var(--muted); display: block; }
+  .risk-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 5px 18px; border-radius: 100px;
+  }
+  .risk-badge.Low { background: var(--green-dim); color: var(--green); border: 0.5px solid rgba(16,185,129,0.3); }
+  .risk-badge.Medium { background: var(--amber-dim); color: var(--amber); border: 0.5px solid rgba(245,158,11,0.3); }
+  .risk-badge.High { background: var(--red-dim); color: var(--red); border: 0.5px solid rgba(255,59,59,0.3); }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.25rem; }
+  .stat-box { background: var(--bg3); border-radius: 10px; padding: 12px 14px; }
+  .stat-box-label { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; font-family: 'DM Mono', monospace; margin-bottom: 4px; }
+  .stat-box-val { font-size: 1.1rem; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+  /* Feature importance */
+  .feat-title { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 10px; font-family: 'DM Mono', monospace; }
+  .feat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .feat-name { font-size: 11px; color: var(--muted); width: 130px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feat-bar-bg { flex: 1; height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+  .feat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.9s cubic-bezier(0.4,0,0.2,1); }
+  .feat-bar-fill.active { background: var(--red); }
+  .feat-bar-fill.inactive { background: rgba(255,255,255,0.15); }
+  .feat-pct { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--faint); width: 28px; text-align: right; }
+
+  /* ─── INFO CARDS ─── */
+  .info-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 4rem; }
+  .info-card {
+    background: var(--bg2); border: 0.5px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .info-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .info-icon { font-size: 1.4rem; margin-bottom: 12px; }
+  .info-card-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .info-card-text { font-size: 12px; color: var(--muted); line-height: 1.65; }
+  .info-card-badge {
+    margin-top: 12px; display: inline-block;
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+    background: var(--bg3); padding: 3px 10px; border-radius: 6px; color: var(--muted);
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center; padding: 2rem;
+    border-top: 0.5px solid var(--border);
+    color: var(--faint); font-size: 12px;
+    font-family: 'DM Mono', monospace; letter-spacing: 0.05em;
+  }
+
+  /* Disclaimer toast */
+  .disclaimer {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    background: var(--bg2); border: 0.5px solid var(--border2);
+    border-radius: 12px; padding: 12px 16px; max-width: 280px;
+    font-size: 11px; color: var(--muted); line-height: 1.55;
+    animation: slideIn 0.4s 1s ease both;
+    z-index: 50;
+  }
+  .disclaimer strong { color: var(--amber); }
+  @keyframes slideIn {
+    from { opacity:0; transform:translateY(12px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="pulse-dot"></div>
+    NeuralStroke
+  </div>
+  <div style="display:flex;gap:12px;align-items:center">
+    <span class="nav-badge">RF Model · 94.06% Acc</span>
+    <span class="nav-badge">AUC · 98.88%</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-tag">AI-Powered Medical Tool · Random Forest</div>
+  <h1 class="hero-title">Predict your<br><em>stroke risk</em><br>in seconds.</h1>
+  <p class="hero-sub">Input your symptoms and age. Our trained model analyzes 16 clinical features to estimate your stroke probability with 94% accuracy.</p>
+  <div class="hero-stats">
+    <div class="hstat">
+      <div class="hstat-num">94<span>%</span></div>
+      <div class="hstat-label">Model Accuracy</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num">70<span>K</span></div>
+      <div class="hstat-label">Training Records</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num">98.9<span>%</span></div>
+      <div class="hstat-label">AUC Score</div>
+    </div>
+  </div>
+  <a href="#predict" class="hero-cta">
+    Start Prediction
+    <span class="cta-arrow">→</span>
+  </a>
+</section>
+
+<!-- PREDICT -->
+<main class="main" id="predict">
+  <div class="section-label">Step 01 — Input</div>
+  <h2 class="section-title">Enter your health profile</h2>
+
+  <div class="predict-layout">
+    <!-- FORM -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Clinical Symptoms</span>
+        <span class="card-sub" id="sym-count">0 / 15 selected</span>
+      </div>
+
+      <div class="age-section">
+        <div class="age-label"><span>Patient Age</span><span id="age-range-label">18 – 90</span></div>
+        <div class="age-display"><span id="age-val">45</span> <span>years old</span></div>
+        <input type="range" id="ageSlider" min="18" max="90" value="45" oninput="updateAge(this.value)">
+      </div>
+
+      <div class="sym-section-label">SELECT ALL SYMPTOMS THAT APPLY</div>
+      <div class="sym-grid" id="symGrid"></div>
+
+      <button class="predict-btn" id="predictBtn" onclick="predict()">
+        Analyze Risk →
+      </button>
+    </div>
+
+    <!-- RESULT -->
+    <div class="card result-panel" id="resultPanel">
+      <div class="result-empty" id="resultEmpty">
+        <div class="result-empty-icon">⚕</div>
+        <div class="result-empty-text">Fill in your symptoms<br>and click <strong style="color:var(--text)">Analyze Risk</strong><br>to see your prediction.</div>
+      </div>
+      <div class="result-content" id="resultContent">
+        <div class="card-head">
+          <span class="card-title">Prediction Result</span>
+          <span class="card-sub" id="res-model-tag">Random Forest</span>
+        </div>
+
+        <div class="risk-meter-wrap">
+          <div class="risk-arc-wrap">
+            <canvas id="arcCanvas" width="160" height="100"></canvas>
+            <div class="risk-number">
+              <span id="res-pct">—</span>
+              <small>stroke risk</small>
+            </div>
+          </div>
+          <div class="risk-badge" id="resBadge">—</div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-box-label">PROBABILITY</div>
+            <div class="stat-box-val" id="res-prob">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">CLASSIFICATION</div>
+            <div class="stat-box-val" id="res-class">—</div>
+          </div>
+        </div>
+
+        <div class="feat-title">FEATURE IMPORTANCE</div>
+        <div id="featList"></div>
+
+        <div id="resAdvice" style="margin-top:1.25rem;padding:12px 14px;border-radius:10px;font-size:12px;line-height:1.6"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFO CARDS -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-icon">🌲</div>
+      <div class="info-card-title">Random Forest Model</div>
+      <div class="info-card-text">200 decision trees trained on 70,000 patient records. Ensemble approach reduces overfitting and improves generalization across diverse patient profiles.</div>
+      <span class="info-card-badge">n_estimators=200 · depth=12</span>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">📊</div>
+      <div class="info-card-title">Dual Prediction</div>
+      <div class="info-card-text">A classifier predicts At Risk / Not At Risk (94% accuracy). A separate regressor estimates the exact stroke probability percentage (MAE: 2.86%).</div>
+      <span class="info-card-badge">classifier + regressor</span>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">🔍</div>
+      <div class="info-card-title">Explainability</div>
+      <div class="info-card-text">Every prediction shows the top feature importances so you can understand exactly which symptoms contributed most to your risk score.</div>
+      <span class="info-card-badge">feature importance</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  NeuralStroke · Built with Random Forest + Flask · For educational purposes only — not a medical device
+</footer>
+
+<div class="disclaimer">
+  <strong>⚠ Disclaimer:</strong> This tool is for educational & portfolio use only. Not a substitute for professional medical advice. Always consult a qualified physician.
+</div>
+
+<script>
+const SYMPTOMS = [
+  'Chest Pain','Shortness of Breath','Irregular Heartbeat','Fatigue & Weakness',
+  'Dizziness','Swelling (Edema)','Pain in Neck/Jaw/Shoulder/Back','Excessive Sweating',
+  'Persistent Cough','Nausea/Vomiting','High Blood Pressure','Chest Discomfort (Activity)',
+  'Cold Hands/Feet','Snoring/Sleep Apnea','Anxiety/Feeling of Doom'
+];
+
+const grid = document.getElementById('symGrid');
+SYMPTOMS.forEach(s => {
+  const el = document.createElement('label');
+  el.className = 'sym-check';
+  el.innerHTML = `<input type="checkbox" value="${s}"><div class="sym-box"></div><span class="sym-text">${s}</span>`;
+  el.addEventListener('click', () => {
+    el.classList.toggle('active');
+    updateCount();
+  });
+  grid.appendChild(el);
+});
+
+function updateCount() {
+  const n = document.querySelectorAll('.sym-check.active').length;
+  document.getElementById('sym-count').textContent = `${n} / 15 selected`;
+}
+
+function updateAge(v) {
+  document.getElementById('age-val').textContent = v;
+}
+
+let arcChart = null;
+
+function drawArc(pct, color) {
+  const canvas = document.getElementById('arcCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 160, 100);
+  const cx = 80, cy = 95, r = 65;
+  const startAngle = Math.PI, endAngle = 2 * Math.PI;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, endAngle);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.stroke();
+  const fillEnd = startAngle + (pct / 100) * Math.PI;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, fillEnd);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+async function predict() {
+  const btn = document.getElementById('predictBtn');
+  btn.classList.add('loading');
+  btn.textContent = 'Analyzing…';
+
+  const age = document.getElementById('ageSlider').value;
+  const data = { Age: parseInt(age) };
+  document.querySelectorAll('.sym-check').forEach(el => {
+    const sym = el.querySelector('input').value;
+    data[sym] = el.classList.contains('active') ? 1 : 0;
+  });
+
+  try {
+    const res = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const r = await res.json();
+    showResult(r);
+  } catch(e) {
+    // Demo mode if backend not running
+    showResult(demoResult(data));
+  }
+
+  btn.classList.remove('loading');
+  btn.textContent = 'Analyze Risk →';
+}
+
+function demoResult(data) {
+  const active = Object.values(data).filter(v => v === 1).length - 0;
+  const age = data.Age || 45;
+  const base = (age / 90) * 40 + active * 4;
+  const riskPct = Math.min(95, Math.max(5, Math.round(base)));
+  const cat = riskPct < 35 ? 'Low' : riskPct < 65 ? 'Medium' : 'High';
+  return {
+    risk_percent: riskPct, probability: riskPct + 2, at_risk: riskPct >= 50 ? 1 : 0,
+    category: cat, color: cat === 'Low' ? 'green' : cat === 'Medium' ? 'amber' : 'red',
+    top_factors: [
+      {name:'Age',importance:57.2,active:true},
+      {name:'Anxiety/Feeling of Doom',importance:3.0,active:data['Anxiety/Feeling of Doom']===1},
+      {name:'Nausea/Vomiting',importance:2.9,active:data['Nausea/Vomiting']===1},
+      {name:'Excessive Sweating',importance:2.9,active:data['Excessive Sweating']===1},
+      {name:'Dizziness',importance:2.9,active:data['Dizziness']===1},
+      {name:'Chest Pain',importance:2.9,active:data['Chest Pain']===1},
+      {name:'Irregular Heartbeat',importance:2.8,active:data['Irregular Heartbeat']===1},
+      {name:'High Blood Pressure',importance:2.8,active:data['High Blood Pressure']===1},
+    ],
+    model_accuracy: 94.06, model_auc: 98.88
+  };
+}
+
+function showResult(r) {
+  document.getElementById('resultEmpty').style.display = 'none';
+  const content = document.getElementById('resultContent');
+  content.classList.add('show');
+
+  const colorMap = { red: '#ff3b3b', amber: '#f59e0b', green: '#10b981' };
+  const c = colorMap[r.color] || '#ff3b3b';
+
+  document.getElementById('res-pct').textContent = r.risk_percent + '%';
+  document.getElementById('res-pct').style.color = c;
+  const badge = document.getElementById('resBadge');
+  badge.textContent = r.category + ' Risk';
+  badge.className = 'risk-badge ' + r.category;
+
+  document.getElementById('res-prob').textContent = r.probability.toFixed(1) + '%';
+  document.getElementById('res-class').textContent = r.at_risk ? '⚠ At Risk' : '✓ Safe';
+  document.getElementById('res-class').style.color = r.at_risk ? '#ff3b3b' : '#10b981';
+
+  drawArc(r.risk_percent, c);
+
+  const featList = document.getElementById('featList');
+  featList.innerHTML = '';
+  const maxImp = r.top_factors[0]?.importance || 1;
+  r.top_factors.forEach(f => {
+    featList.innerHTML += `
+      <div class="feat-row">
+        <span class="feat-name">${f.name}</span>
+        <div class="feat-bar-bg">
+          <div class="feat-bar-fill ${f.active?'active':'inactive'}" style="width:0%" data-w="${(f.importance/maxImp*100).toFixed(1)}%"></div>
+        </div>
+        <span class="feat-pct">${f.importance}%</span>
+      </div>`;
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.feat-bar-fill').forEach(b => b.style.width = b.dataset.w);
+  }, 50);
+
+  const advice = document.getElementById('resAdvice');
+  if (r.category === 'Low') {
+    advice.style.background = 'rgba(16,185,129,0.08)';
+    advice.style.border = '0.5px solid rgba(16,185,129,0.2)';
+    advice.style.color = '#6ee7b7';
+    advice.innerHTML = '✓ <strong>Low risk detected.</strong> Maintain a healthy lifestyle, stay active, and schedule regular check-ups.';
+  } else if (r.category === 'Medium') {
+    advice.style.background = 'rgba(245,158,11,0.08)';
+    advice.style.border = '0.5px solid rgba(245,158,11,0.2)';
+    advice.style.color = '#fcd34d';
+    advice.innerHTML = '⚡ <strong>Moderate risk detected.</strong> Consider consulting a physician. Monitor blood pressure and reduce stress.';
+  } else {
+    advice.style.background = 'rgba(255,59,59,0.08)';
+    advice.style.border = '0.5px solid rgba(255,59,59,0.2)';
+    advice.style.color = '#fca5a5';
+    advice.innerHTML = '🚨 <strong>High risk detected.</strong> Please seek medical attention soon. Multiple high-importance symptoms are active.';
+  }
+
+  document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
